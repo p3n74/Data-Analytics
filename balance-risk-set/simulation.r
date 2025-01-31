@@ -145,7 +145,7 @@ for (i in 1:n_sim){
 		m.out <- tryCatch({
 			matchit(treated ~ X1 + X2 + X3 + X4 + X5,
 							data = strata_data,
-							method = "nearest",
+							method = "optimal",
 							distance = "logit",
 							ratio = 1)
 					# Param: 1 Control per treated, adjust if need

@@ -11,12 +11,12 @@ library(pbapply)  # For progress bar
 set.seed(69)
 
 # Simulation parameters
-n_treated <- 2500
-n_control <- 2500
+n_treated <- 500 
+n_control <- 500 
 p_cov <- 5
 beta <- 2
 sigma <- 1
-n_sim <- 5000
+n_sim <- 1000 
 
 # Function to perform a single simulation
 simulate_iteration <- function(i) {
@@ -66,14 +66,14 @@ simulate_iteration <- function(i) {
     desired_ratio <- floor(n_control_strata / n_treated_strata)
     desired_ratio <- ifelse(desired_ratio < 1, 1, desired_ratio)
 
-    if (n_control_strata < n_treated_strata) {
-      cat("Warning: Fewer control units than treated units; not all treated units will get a match.\n")
-    }
+    ##if (n_control_strata < n_treated_strata) {
+    #  cat("Warning: Fewer control units than treated units; not all treated units will get a match.\n")
+    #}
 
     m.out <- tryCatch({
       matchit(treated ~ X1 + X2 + X3 + X4 + X5,
               data = strata_data,
-              method = "optimal",
+              method = "nearest",
               distance = "logit",
               ratio = desired_ratio)
     }, error = function(e) {
