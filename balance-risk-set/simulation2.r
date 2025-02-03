@@ -187,7 +187,7 @@ for (i in 1:n_sim){
 			matchit(treated ~ X1 + X2 + X3 + X4 + X5,
 							data = strata_data,
 							method = "optimal",
-							distance = "logit",
+							distance = "mahalanobis",
 							ratio = desired_ratio
 							# caliper = 0.2
 							)

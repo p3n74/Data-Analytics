@@ -74,7 +74,7 @@ simulate_iteration <- function(i) {
       matchit(treated ~ X1 + X2 + X3 + X4 + X5,
               data = strata_data,
               method = "nearest",
-              distance = "logit",
+              distance = "mahalanobis",
               ratio = desired_ratio)
     }, error = function(e) {
       cat("Error in matching at Iteration", i, "Stratum", s, ":", conditionMessage(e), "\n")
