@@ -26,7 +26,7 @@ set.seed(6969)
 # Simulation Parameters
 n_patients <- 800 # Total number of patients
 n_treated_pairs <- 200 # Number of matched pairs (100 treated patients)
-n_covariates <- 6     # Pain, Urgency, Frequency at baseline and treatment time
+n_covariates <- 6 # Pain, Urgency, Frequency at baseline and treatment time
 num_cores <- detectCores() - 1  # Number of cores for parallel processing
 
 # Function to generate covariate values
@@ -77,7 +77,7 @@ patients$treatment_time[patients$eventually_treated == 0] <- Inf  # Never treate
 patients$unobserved <- rnorm(n_patients, mean = 0, sd = 1)
 
 # Include a treatment effect in the linear predictor
-treatment_effect <- -3.2 # Adjust as needed (negative value indicates reduced hazard)
+treatment_effect <- -4 # Adjust as needed (negative value indicates reduced hazard)
 
 # Adjust the linear predictor to include the treatment effect
 patients$lin_pred <- with(patients,
@@ -91,11 +91,11 @@ patients$lin_pred <- with(patients,
                           treatment_effect * eventually_treated)
 
 # Simulate event times (time to symptom improvement)
-baseline_hazard <- 0.002  # Adjust as needed
+baseline_hazard <- 0.0002 # Adjust as needed
 patients$event_time <- rexp(n_patients, rate = baseline_hazard * exp(patients$lin_pred))
 
 # Observe patients up to a fixed censoring time
-censoring_time <- 30
+censoring_time <- 180 
 patients$time <- pmin(patients$event_time, censoring_time)
 patients$event <- as.numeric(patients$event_time <= censoring_time)
 

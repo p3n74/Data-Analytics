@@ -118,7 +118,7 @@ simulate_iteration <- function(i) {
 }
 
 # Use parallel processing with a progress bar
-num_cores <- detectCores() - 1  # Use all but one core
+num_cores <- 4  # Use all but one core
 results <- pblapply(1:n_sim, simulate_iteration, cl = num_cores)
 
 # Extract results

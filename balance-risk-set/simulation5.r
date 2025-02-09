@@ -1,5 +1,3 @@
-# I DID NOT UNDErSTAND properly so now we are at the third iteration
-
 # Load necessary libraries
 library(dplyr)
 library(survival)
@@ -8,16 +6,6 @@ library(ROI.plugin.glpk)
 library(ggplot2)
 library(parallel)
 library(cobalt)
-# Uncomment the following lines if you need to install the packages
-# install.packages("ROI")
-# install.packages("ROI.plugin.glpk")
-# install.packages("ggplot2")
-# install.packages("parallel")
-# install.packages("cobalt")
-# install.packages("devtools")
-# devtools::install_github("markmfredrickson/sensitivitymw")
-
-# Load the sensitivitymw package
 library(sensitivitymw)
 
 # Set seed for reproducibility
@@ -25,9 +13,8 @@ set.seed(6969)
 
 # Simulation Parameters
 n_patients <- 800 # Total number of patients
-n_treated_pairs <- 200 # Number of matched pairs (100 treated patients)
-n_covariates <- 6     # Pain, Urgency, Frequency at baseline and treatment time
-num_cores <- 4  # Number of cores for parallel processing
+n_treated_pairs <- 400 # Number of matched pairs
+n_covariates <- 6     # Number of covariates
 
 # Function to generate covariate values
 generate_covariates <- function(n) {
@@ -76,8 +63,8 @@ patients$treatment_time[patients$eventually_treated == 0] <- Inf  # Never treate
 # Generate Unobserved Frailty Term
 patients$unobserved <- rnorm(n_patients, mean = 0, sd = 1)
 
-# Include a treatment effect in the linear predictor
-treatment_effect <- -4 # Adjust as needed (negative value indicates reduced hazard)
+# Adjusted treatment effect
+treatment_effect <- -4  # Adjusted from -10 to -2 for a moderate effect size
 
 # Adjust the linear predictor to include the treatment effect
 patients$lin_pred <- with(patients,
@@ -91,11 +78,11 @@ patients$lin_pred <- with(patients,
                           treatment_effect * eventually_treated)
 
 # Simulate event times (time to symptom improvement)
-baseline_hazard <- 0.02 # Adjust as needed
+baseline_hazard <- 0.0002 # Adjust as needed
 patients$event_time <- rexp(n_patients, rate = baseline_hazard * exp(patients$lin_pred))
 
 # Observe patients up to a fixed censoring time
-censoring_time <- 10
+censoring_time <- 180 
 patients$time <- pmin(patients$event_time, censoring_time)
 patients$event <- as.numeric(patients$event_time <= censoring_time)
 
@@ -151,6 +138,7 @@ treated_info <- patients %>%
   select(ID, treatment_time)
 
 # Create cluster for parallel processing
+num_cores <- detectCores() - 1  # Number of cores for parallel processing
 cl <- makeCluster(num_cores)
 clusterExport(cl, varlist = c("patients", "treated_info", "covariate_names", "binary_covariates"), envir = environment())
 clusterEvalQ(cl, {
@@ -330,17 +318,70 @@ matched_data <- rbind(matched_data_treated, matched_data_control)
 # Sort matched_data by pair_id and treatment
 matched_data <- matched_data[order(matched_data$pair_id, matched_data$treatment), ]
 
-# Check covariate balance
+# Check covariate balance using cobalt
 balance <- bal.tab(treatment ~ baseline_pain + baseline_urgency + baseline_frequency +
                      treatment_pain + treatment_urgency + treatment_frequency,
                    data = matched_data,
                    estimand = "ATT",
                    subclass = matched_data$pair_id)
-print(balance)
+
+# Extract the balance table and add the Covariate names
+balance_table <- as.data.frame(balance$Balance)
+balance_table$Covariate <- rownames(balance_table)
+
+# Adjust the selection of columns based on actual column names
+balance_table <- balance_table[, c("Covariate", "Type", "Diff.Adj")]
+
+# Rename columns for clarity
+colnames(balance_table) <- c("Covariate", "Type", "Std.Diff.Matched")
+
+# Display the balance table
+cat("\nCovariate Balance Table After Matching:\n")
+print(balance_table)
 
 # Outcome Analysis using Cox Proportional Hazards Model
+
+# Check the event distribution
+event_table <- table(Treatment = matched_data$treatment, Event = matched_data$event)
+cat("\nEvent Table:\n")
+print(event_table)
+
+# Fit the Cox proportional hazards model
 cox_model <- coxph(Surv(time, event) ~ treatment, data = matched_data)
-summary(cox_model)
+cox_summary <- summary(cox_model)
+
+# Display Cox model results
+cat("\n\n**Cox Proportional Hazards Model Results**\n")
+cox_results <- data.frame(
+  Coefficient = cox_summary$coefficients[, "coef"],
+  Exp_Coefficient = cox_summary$coefficients[, "exp(coef)"],
+  Std_Error = cox_summary$coefficients[, "se(coef)"],
+  z_value = cox_summary$coefficients[, "z"],
+  p_value = cox_summary$coefficients[, "Pr(>|z|)"]
+)
+rownames(cox_results) <- rownames(cox_summary$coefficients)
+print(round(cox_results, 4))
+
+# Global test statistics
+global_tests <- data.frame(
+  Test = c("Likelihood ratio test", "Wald test", "Score (logrank) test"),
+  Statistic = c(cox_summary$logtest["test"],
+                cox_summary$waldtest["test"],
+                cox_summary$sctest["test"]),
+  df = c(cox_summary$logtest["df"],
+         cox_summary$waldtest["df"],
+         cox_summary$sctest["df"]),
+  p_value = c(cox_summary$logtest["pvalue"],
+              cox_summary$waldtest["pvalue"],
+              cox_summary$sctest["pvalue"])
+)
+
+# Round numeric columns only
+global_tests[, c('Statistic', 'df', 'p_value')] <- round(global_tests[, c('Statistic', 'df', 'p_value')], 4)
+
+# Display the global test statistics
+cat("\n\n**Global Test Statistics**\n")
+print(global_tests)
 
 # Sensitivity Analysis
 # Prepare data for sensitivity analysis
@@ -402,14 +443,18 @@ for (i in seq_along(gamma_values)) {
   sensitivity_results$p_value[i] <- p_val_one_sided
 }
 
+# Display sensitivity analysis results
+cat("\n\n**Sensitivity Analysis Results**\n")
+print(sensitivity_results)
+
 # Plot the sensitivity analysis results
 ggplot(sensitivity_results, aes(x = Gamma, y = p_value)) +
   geom_line(color = "blue") +
-  geom_hline(yintercept = 0.05, linetype = "dashed", color = "red") +
+  geom_point(color = "red") +
+  geom_hline(yintercept = 0.05, linetype = "dashed", color = "darkgreen") +
   labs(
     title = "Sensitivity Analysis using senmw()",
     x = expression(Gamma),
     y = "One-sided P-value"
   ) +
   theme_minimal()
-
