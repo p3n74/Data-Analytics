@@ -1,0 +1,11 @@
+pandas
+numpy
+scipy
+scikit-learn
+statsmodels
+matplotlib
+seaborn
+plotly
+lifelines
+patsy
+
